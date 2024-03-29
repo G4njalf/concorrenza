@@ -1,0 +1,187 @@
+Dato un servizio di message passing asincrono implementare un servizio di message passing testardo
+che consegna solo i messaggi ricevuti due volte con il medesimo contenuto da qualsiasi mittente (i due messaggi
+uguali possono provenire da mittenti diversi). Il servizio di message passing testardo prevede due funzioni:
+void tsend(msg_t msg, pid_t dest)
+msg_t trecv(void)
+Il message passing testardo ha lo stesso potere espressivo del message passing asincrono?
+
+
+asend(m, q)
+
+il mittente p spedisce il messaggio m al processo q, senza 
+bloccarsi in attesa che il destinatario esegua l'operazione 
+areceive(p)
+
+m = areceive(p)
+
+il destinatario q riceve il messaggio m dal processo p; se il 
+mittente non ha ancora spedito alcun messaggio, il 
+destinatario si blocca in attesa di ricevere un messaggio
+
+L : list of T
+
+void tsend(msg_t msg, pid_t dest):
+    asend(msg, dest)
+    
+msg_t trecv(void)
+  while True:
+    msg = arecv(ANY);
+    if msg in L:
+      L.delete(msg)
+      return msg
+    else:
+      L.add(msg)
+      
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+Un servizio viene fornito in modalità client-server usando message passing asincrono.
+Al fine di aumentare l'efficienza si decide di usare molti server e un processo dispatcher in grado di distribuire le
+richieste agli N server. Quando un processo server è libero riceve dal dispatcher la prossima richiesta da elaborare:
+
+codice di ogni client (tanti!): .....
+asend(<getpid(), request>, dispatcher) // il client manda una rishiesta al dispatcher
+result = arecv(dispatcher)      //attende una risposta dal dispatcher
+
+server process[i], i = 0, ..., N-1:
+ request = arecv(dispatcher)  //attende una richiesta dal dispatcher
+ result = compute(request)    //fa le operazioni che deve
+ asend(<getpid(), result>, dispatcher)  //manda il risultato al dispatcher che deve rispedirlo al client giusto
+
+Scrivere il processo dispatcher. (il dispatcher conosce i pid di tutti i server).
+
+
+process dispatcher:
+
+request = areceive(pid_client)
+for i=0 to N-1:
+    if pid_sever[i].computing == False:
+    asend(request,pid_server[i])
+    brake;
+result = areceive(pid_server[i])
+asend(result,d_pid_client)
+
+
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+Un servizio di message passing asincrono non fifo (nfasend/nfarecv) consegna in tempo finito tutti i
+messaggi spediti ma non è garantito che i messaggi vengano ricevuti nell'ordine nel quale sono stati spediti.
+void nfasend(msg_t msg, pid_t dest)
+msg_t nfarecv(pid_t sender)
+Dato un servizio di message passing asincrono non fifo scrivere una libreria che implementi il servizio di message
+passing asincrono fifo:
+void asend(msg_t msg, pid_t dest)
+msg_t arecv(pid_t sender)
+Nota: sia il servizio dato (non fifo) sia quello da implementare (fifo) consentono la ricezione solo da mittente specificato
+(non supportano ANY/*).
+
+
+
+//enumerare i messaggi per ogni destinatario
+
+//il destinatario tiene un contatore per ogni mittente
+//e tiene conto l'ultimo 
+//lo mette in coda se non è quello che si aspetta
+
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+Dato un servizio di message passing asincrono implementare un servizio di message passing sincrono
+con selezione ordinata che ha la seguente interfaccia:
+ void snsend(msgtype msg, pid_t dest);
+ msgtype snrecv(pid_t sender, int n);
+La funzione snrecv deve restituire l'n-mo messaggio proveniente dal mittente specificato (che può essere any). Se n ==
+0 restituisce l'ultimo messaggio. Esempi:
+m = snrecv(tizio, 1): restituisce il primo messaggio da tizio (attende se non ve ne sono)
+m = snrecv(ANY, 42): restituisce il 42-mo messaggio da chiunque (attende se ci sono meno di 42 messaggi in attesa di
+essere ricevuti)
+m = snrecv(caio, 0): restituisce l'ultimo messaggio ricevuto da Caio (attende se non ci sono messaggi pendenti da Caio)
+m = snrecv(ANY, 0): restituisce l'ultimo messaggio ricevuto, indipendentemente dal mittente. 
+
+
+void snsend(msgtype msg, pid_t dest)
+{
+    ssend(msg,dest);
+}
+
+struct obj      //utilizzate solo da snrecv
+    {
+        msgtype m;
+        pid_t d;
+    }
+
+l = list of obj;
+
+msgtype snrecv(pid_t sender, int n)
+{
+    x = obj
+    x.m = srecv(sender)
+    x.d = sender
+    l.append(x)
+    counter = 0
+    for i=0 in range(len(l))
+        if l[i].x.d == sender
+            counter ++
+        if counter == n
+            return l[i].x.m         
+
+}
+
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+Dato un servizio di message passing asincrono implementare un servizio di message passing
+asincrono a selezione di mittenti (samp) senza fare uso di processi server.
+Il servizio samp ha due primitive:
+sasend(message , destination)
+sarecv(senders)
+dove senders è un insieme.
+la sarecv restituisce il primo messaggio che uno dei processi in senders ha spedito al processo ricevente
+usando la sasend (o spedito da qualsiasi processo se senders è vuoto).
+
+
+void sasend(msg_t msg, pid_t dst) {
+  asend((getpid(), msg), dst)
+}
+
+Dic<pid_t, Queue<msg_t>> db;
+
+msg_t sarecv(pid_t sndrs[]) {
+  for(sndr in sndrs) {
+    if(!db.has(sndr) || db.get(sndr).size() == 0)
+      continue;
+
+    return db.get(sndr).pop()
+  }
+  (pid_t, msg_t) (sndr, msg);
+  do {
+    (sndr, msg) = arecv()
+    if(!(sndr in sndrs))
+      db.get(sndr).push(msg)
+  } while(!(sndr in sndrs))
+  return msg;
+}
+
+#---------------------------------------------------------------------------------------------------------------------------------------
+
+sia dato un sistema di processi a memoria privata che fornisca servizio di message passing asincrono.
+Siano date inoltre la funzione call4fun ed il processo server definite come segue:
+
+def call4fun (x):
+asend(server, (getpid(), x, 0, 1))
+return(arecv(server))
+
+process server:
+forever:
+(s, n, r, v) = arecv(*)
+if (n > 0)
+asend(server, (s, n-1, r+v, v+2))
+else
+asend(s, r)
+
+Cosa calcola la funzione call4fun e come viene calcolato questo valore?
+
+call4fun manda al server il messaggio (getpid(),x,0,1) con x come parametro della call4fun
+e attendo una risposta dal server
+
+il server riceverà dunque il medesimo e se il parametro x (che qui è n) è > 0 allora:
+il server si rimanda il messaggio modificato (s,n-1,r+v,v+2)
+quando finalmente n <= 0 :
+il server manda un messaggio al pid di call4fun con il nuovo valore di r che è stato calcolato sommando r+v per n=x iterazioni

@@ -1,0 +1,86 @@
+SEMARORI
+
+Class Semaphore 
+{ 
+  semaphore(int v);
+  void P(void);
+  void V(void);
+}
+
+void P() 
+{
+   if (value > 0)
+     Value--;
+   else 
+   {
+     pid = <id del processo
+            che ha invocato P>;
+     queue.add(pid);        //Il process id del processo bloccato viene messo in una struttura d’attesa del semaforo
+
+     suspend(pid);      //Con l'operazione suspend, il s.o mette il processo nello stato waiting
+   }
+ }
+
+void V() 
+{
+   if (queue.empty())
+     Value++;
+   else 
+   {
+     pid = queue.remove();      //Il process id del processo da sbloccare viene selezionato (secondo una certa politica) 
+     wakeup(pid);               //dalla struttura queue
+   }                            //Con l'operazione wakeup, il S.O. mette il processo nello stato ready
+ }
+
+
+INVARIANTE SEMARORI
+
+Siano:
+
+-nP il numero di operazioni P completate
+-nV il numero di operazioni V completate
+-init il valore iniziale del semaforo
+
+Vale il seguente invariante:
+nP ≤ nV + init
+
+In altre parole, detto valore del semaforo:  nV + init – nP 
+il valore del semaforo deve sempre essere non negativo ( >= 0 )
+
+Due casi d’uso:
+
+-eventi (init = 0)
+il numero di eventi "consegnati" deve essere non superiore al numero di 
+volte che l'evento si è verificato
+
+-risorse (init > 0)
+il numero di richieste soddisfatte non deve essere superiore al numero 
+iniziale di risorse + il numero di risorse restituite
+
+
+"passaggio del testimone" perché il processo che rilascia la risorsa attiva al massimo un processo sospeso; 
+sarà compito di quest'ultimo provvedere a sua volta alla riattivazione di eventuali altri processi al momento del rilascio. 
+Poiché il codice che segnala che la risorsa è allocata a un processo è presente solo nella primitiva di acquisizione, 
+risulta più complesso rimuovere dalla sospensione più processi per i quali la condizione di accesso alla risorsa è diventata vera.
+
+
+MESSAGE PASSING 
+
+MP sincrono dato quello asincrono
+
+
+void ssend(Object msg, Process q) 
+{
+  Asend(<getpid(), msg>, q);
+  ack = areceive(q);
+}  
+
+
+Object sreceive(p) 
+{
+  Object msg;
+  Pid_t sender;
+  <sender, msg> = areceive(p);
+  asend(ack, sender);
+  return msg;
+}
