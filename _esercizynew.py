@@ -195,31 +195,195 @@ class rb(monitor.monitor):
         return (vblack + v) / 2  
 
 
-themonitor = rb()
+'''
+Scrivere, facendo uso di semafori, la funzione syncvalue che ha la seguente dichiarazione:
+void syncvalue(int key);
+I processi che chiamano la syncvalue si bloccano sempre. Quando il valore del parametro key è diverso da quello della
+precedente chiamata il processo prima di bloccarsi riattiva tutti i processi in attesa. Per esempio:
+P chiama syncvalue(42), si blocca.
+Q chiama syncvalue(42), si blocca.
+R chiama syncvalue(44) sblocca P e Q poi si blocca.
+T chiama syncvalue(46), sblocca R e si blocca.
+P chiama syncvalue(46), si blocca.
+V chiama syncvalue(0), sblocca T e P poi si blocca...
+'''
+s = Semaphore(0)
+mutex = Semaphore(1)
+blocked = 0
+memokey = -1
 
-def p1():
-    time.sleep(2)
-    safeprint(themonitor.meanblack(2),"<-p1")
-    
-
-def p2():
-    time.sleep(2)
-    safeprint(themonitor.meanred(4),"<-p2")
-    
-
-def p3():
-    
-    safeprint(themonitor.meanblack(6),"<-p3")
-    safeprint(themonitor.meanblack(6),"<-p3")
+def syncvalue(key):
+    global memokey, blocked
+    mutex.acquire()
+    if memokey != key:
+        memokey = key
+        for _ in range(blocked):
+            s.release()
+        blocked += 1
+        mutex.release()
+        s.acquire()
+        blocked -= 1
+        return
+    else:
+        blocked += 1
+        mutex.release()
+        s.acquire()
+        blocked -= 1
     return
 
 
+
+'''
+Scrivere il monitor cs che fornisca un servizio di elaborazione client-server.
+I molteplici "clienti" chiedono elaborazioni ai server eseguendo la seguente funzione:
+def service_request(data):
+ return cs.request(data)
+mentre i server eseguono il codice:
+process server(i: i = 0,...,NSERVER-1):
+ while True:
+ data = cs.get_request(i)
+ cs.send_result(i, process(data))
+Quando un server è libero chiede una nuova richiesta da elaborare (funzione get_request), se non ci sono richieste da
+elaborare attende che un cliente ne sottoponga una (tramite la funzione request). Se vi sono uno o più richieste in attesa
+di essere elaborate get_request restituisce i dati (argomento data) della prima.
+Dopo che il server ha elaborato la richiesta (funzione process) il risultato viene passato al monitor tramite la funzione
+send_result che lo restituisce al cliente come valore di ritorno della funzione request.
+'''
+
+class cs(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.pendingrequests = 0
+        self.conditionserver = monitor.condition(self)
+        self.conditionclient = monitor.condition(self)
+        self.requests = []
+        self.data = 0
     
+    @monitor.entry
+    def getrequest(self):  #la chiama il server per prendere una request da un client
+        if self.pendingrequests > 0:
+            data = self.requests.pop()
+            self.pendingrequests -= 1
+            return data
+        self.conditionserver.wait()
+        data = self.requests.pop()
+        self.pendingrequests -= 1
+        return data
+
+    @monitor.entry
+    def request(self,data): # la chiama il client per fare una richiesta al server
+        self.requests.insert(0,data)
+        self.pendingrequests += 1
+        self.conditionserver.signal()
+        self.conditionclient.wait()
+        return self.data
+
+    @monitor.entry
+    def sendresult(self,data): # la chiama il server dopo aver elaborato la richiesta il monitor la restituira al cliente come return di request
+        self.data = data
+        self.conditionclient.signal()
+
+
+'''
+Scrivere il monitor redblack che fornisce una procedure entry:
+#define red 0
+#define black 1
+double rb(int color, double value)
+I processi che usano il monitor redblack devono sincronizzarsi in modo che completino l'esecuzione di rb in modo
+alternato: se l'ultimo processo che ha completato rb aveva indicato il colore rosso il prossimo sia nero e viceversa.
+(in altre parole mai due processi che avevano chiamato rb con lo stesso colore possono proseguire uno dopo l'altro
+Il valore di ritorno di rb deve essere la media dei valori dei parametri "value" delle chiamate rb di colore "color" che sono
+state sbloccate.
+Esempio: La chiamata rb(red, 2) non si blocca e ritorna 2, successivamente rb(red, 4) si blocca perché l'ultima
+sbloccata è rossa. Poi rb(black, 5) non si blocca perché l'ultima è rossa e ritorna 5 ma a questo punto si può sbloccare
+anche la chiamata precedente rb(red, 4) e il valore ritornato è 3 (la media fra 2 e 4). 
+'''
+
+class redblack(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.condition = monitor.condition(self)
+        self.color = None
+        self.sumred = 0
+        self.sumblack = 0
+        self.numberred = 0
+        self.numberblack = 0
+
+    @monitor.entry
+    def rb(self,color,value):
+        if self.color == color:
+            if color == 0: #red
+                self.sumred = self.sumred + value
+                self.numberred += 1
+                self.condition.wait()
+                return self.sumred / self.numberred
+            else: #black
+                self.sumblack = self.sumblack + value
+                self.numberblack += 1
+                self.condition.wait()
+                return self.sumblack / self.numberblack
+        if color == 0: # red
+            self.color = color
+            self.sumred = self.sumred + value
+            self.numberred += 1
+            self.condition.signal()
+            return value
+        else: # black
+            self.color = color
+            self.sumblack = self.sumblack + value
+            self.numberblack += 1
+            self.condition.signal()
+            return value
+
+
+'''
+Scrivere il monitor fullbuf che abbia le seguenti procedure entry:
+void add(int value)
+int get(void)
+Le prime MAX chiamate della procedure entry add devono bloccare i processi chiamanti. In seguito deve sempre valere
+Na >= MAX indicando con Na il numero di processi bloccati in attesa di completare la funzione add.
+La funzione get deve attendere che Na > MAX, restituire la somma algebrica dei parametri value delle chiamate add in
+sospeso e riattivare il primo processo in attesa di completare la add (se la get richiede che Na > MAX, la get può
+riattivare un processo e al completamento della get si rimarrà garantito che Na >= MAX)
+'''
+
+class fullbuf(monitor.monitor):
+    def __init__(self):
+        self.max = 10
+        self.na = 0 #numero processi bloccati in attesa di completare la funzione add
+        self.sum = 0
+        self.condition = monitor.condition(self)
+        super().__init__()
+
+    @monitor.entry
+    def add(self,value):
+        if self.na < self.max:
+            self.na += 1
+            self.sum = self.sum + value
+            self.condition.wait()
+        return
+    
+    @monitor.entry
+    def get(self):
+        if(self.na > self.max):
+            return self.sum
+
+
+themonitor = redblack()
+
+
+def p1():
+    safeprint("p1 ->",themonitor.rb(0,10))
+
+def p2():
+    safeprint("p2 ->",themonitor.rb(1,20))
+
+def p3():
+    safeprint("p3 ->",themonitor.rb(1,5))
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
 t3=Thread(target=p3)
-
 
 t1.start()
 t2.start()
