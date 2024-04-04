@@ -369,22 +369,72 @@ class fullbuf(monitor.monitor):
             return self.sum
 
 
-themonitor = redblack()
+'''
+Scrivere il monitor synmsg che consenta uno scambio di messaggi fra due processi in maniera sincrona.
+Il processo produttore esegue il seguente codice.
+producer: process:
+while True:
+msg_t msg = produce_new_msg()
+synmsg.send(&msg)
+e il processo consumatore:
+producer: process:
+while True:
+msg_t msg
+synmsg.recv(&msg)
+consume_msg(&msg)
+Come si vede le procedure entry hanno come parametro l'indirizzo del messaggio:
+procedure entry void send(msg_t *msg)
+procedure entry void recv(msg_t *msg)
+Il monitor deve trasferire il contenuto del messaggio direttamente fra i processi usando la funzione:
+void copymsg(msg_t *src, msg_t *dest)
+(Il monitor non deve avere buffer di tipo msg_t ma solo variabili di tipo puntatore a msg_t.)
+'''
+
+def copymsg(src,dest):
+    dest = src
+    return dest
+
+#ricorda , nel mp sincrono, la send è sincrona (il sender manda, poi si blocca fino a che il messaggio non viene ricevuto)
+# la recieve è bloccante (il destinatario chiama la recieve, e se non ce ancora il messaggio si blocca ad aspettarlo)
+class synmsg(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.msg = None
+        self.conditionrcv = monitor.condition(self)
+        self.conditionsnd = monitor.condition(self)
+    
+    @monitor.entry
+    def send(self,msg):
+        self.msg = copymsg(msg,self.msg)
+        self.conditionrcv.signal()
+        self.conditionsnd.wait()
+
+    @monitor.entry
+    def recv(self):
+        if self.msg == None:
+            self.conditionrcv.wait()
+        else:
+            self.conditionsnd.signal()
+            return self.msg
+
+
+themonitor = synmsg()
 
 
 def p1():
-    safeprint("p1 ->",themonitor.rb(0,10))
+    while True:
+        msg = "Hello"
+        themonitor.send(msg)
+        safeprint("arrivato messaggio")
 
 def p2():
-    safeprint("p2 ->",themonitor.rb(1,20))
+    while True:
+        msg = themonitor.recv()
+        safeprint(msg)
 
-def p3():
-    safeprint("p3 ->",themonitor.rb(1,5))
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
-t3=Thread(target=p3)
 
 t1.start()
 t2.start()
-t3.start()
