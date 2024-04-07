@@ -417,24 +417,118 @@ class synmsg(monitor.monitor):
             self.conditionsnd.signal()
             return self.msg
 
+'''
+Facendo uso di semafori scrivere un funzione wait4 che faccia proseguire i processi a blocchi di quattro: il
+primo processo che chiama la wait4 si deve fermare, così come il secondo e il terzo. Il quarto processo deve far
+proseguire tutti e quattro i processi. In uguale modo l'ottavo processo che chiama wait4 risveglierà anche il quinto, il
+sesto e il settimo.
+SI chiede:
+* che l'implementazione non faccia uso di code o di altre strutture dati ma solamente di contatori (e ovviamente
+semafori)
+* che la soluzione faccia uso del passaggio del testimone per garantire che vengano riattivati i processi corretti e non
+altri.
+'''
 
-themonitor = synmsg()
+mutex = Semaphore(1)
+s = [Semaphore(0) for _ in range(4)]
+counter = 0
 
+def wait4():
+    global counter,s,mutex
+    mutex.acquire()
+    if counter <= 3:
+        counter += 1
+        mutex.release()
+        s[counter-1].acquire()
+        return
+    else:
+        for i in range(4):
+            s[i].release()
+        counter = 0
+        mutex.release()
+        return
+    
+
+'''
+I bit di un numero intero rappresentano condizioni di un sistema. Se lo stato attuale è 6 (0110) vuole dire
+che attualmente sono vere le condizioni 2 (0010) e 4 (0100).
+Scrivere un monitor bitcond che fornisca le seguenti procedure entry:
+void set(int bit2set); accende nello stato attuale i bit di bit2set
+void unset(int bit2unset) spegne nello stato attuale i bit di bit2unset
+void statuswait(int bit2wait) attende che lo stato attuale soddisfi tutti le condizioni indicate in bit2wait (cioè
+che tutti i bit in bit2wait siano accesi nello stato attuale).
+Le richieste statuswait devono essere servite in ordine FIFO (cioè un processo anche se sono presenti tutte le
+condizioni necessarie deve attendere se un processo che ha chiamato statuswait prima è in attesa).
+Lo stato iniziale è zero (nessuna risorsa disponibile)
+'''
+
+class bitcond(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+
+'''
+Usando i semafori implementare un servizio che preveda due funzioni:
+void sumstop(int v)
+int sumgo(void)
+La funzione sumstop deve mettere il processo chiamante in attesa.
+La funzione sumgo deve sbloccare tutti i processi messi in attesa con la sumstop e restituire la somma algebrica dei
+valori passati come parametro alla sumstop dai processi che sono stati sbloccati (zero se la sumgo viene richiamate
+quando non c'è nessun processo bloccato).
+'''
+sum = 0
+s = [Semaphore(0)]
+counter = 0
+mutex = Semaphore(1)
+
+def sumstop(v):
+    global sum,s,counter,mutex
+    mutex.acquire()
+    sum = v + sum
+    s.append(Semaphore(0))
+    mutex.release()
+    s[counter].acquire()
+    counter -= 1
+    return
+
+def sumgo():
+    global sum,s,counter,mutex
+    mutex.acquire()
+    for i in range(counter):
+        s[i].release()
+    retsum = sum
+    sum = 0
+    mutex.release()
+    return retsum
 
 def p1():
     while True:
-        msg = "Hello"
-        themonitor.send(msg)
-        safeprint("arrivato messaggio")
+        sumstop(10)
 
 def p2():
     while True:
-        msg = themonitor.recv()
-        safeprint(msg)
+        sumstop(10)
 
+def p3():
+    while True:
+        safeprint(sumgo())
+
+def p4():
+    while True:
+        sumstop(10)
+
+def p5():
+    while True:
+        safeprint(sumgo())
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
+t3=Thread(target=p3)
+t4=Thread(target=p4)
+t5=Thread(target=p5)
 
 t1.start()
 t2.start()
+t3.start()
+t4.start()
+t5.start()
+
