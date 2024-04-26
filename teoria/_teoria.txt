@@ -84,3 +84,13 @@ Object sreceive(p)
   asend(ack, sender);
   return msg;
 }
+
+
+MESSAGE PASSING SINCRONO -> send sincrona(il mittente resta bloccato finche il destinatario non fa la recieve) , 
+                            recieve bloccante(se il mittente non ha ancora spedito il messaggio il destinatario attende che arrivi)
+
+MESSAGE PASSING ASINCRONO -> send asincrona(manda il messaggio e va avanti senza aspettare niente) ,
+                              recieve bloccante(se il mittente non ha ancora spedito il messaggio, il destinatario attende che arrivi)
+
+MESSAGE PASSING COMPLETAMENTE ASINCRONO -> send asincrona(manda il messaggio e va avanti senza aspettare niente) ,
+                                            recieve non bloccante(se fa la recieve senza che ci sia nessun messaggio torna NULL)

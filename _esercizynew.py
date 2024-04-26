@@ -369,21 +369,180 @@ class fullbuf(monitor.monitor):
             return self.sum
 
 
-themonitor = redblack()
+'''
+Scrivere il monitor synmsg che consenta uno scambio di messaggi fra due processi in maniera sincrona.
+Il processo produttore esegue il seguente codice.
+producer: process:
+ while True:
+ msg_t msg = produce_new_msg()
+ synmsg.send(&msg)
+e il processo consumatore:
+consumer: process:
+ while True:
+ msg_t msg
+ synmsg.recv(&msg)
+ consume_msg(&msg)
+Come si vede le procedure entry hanno come parametro l'indirizzo del messaggio:
+procedure entry void send(msg_t *msg)
+procedure entry void recv(msg_t *msg)
+Il monitor deve trasferire il contenuto del messaggio direttamente fra i processi usando la funzione:
+void copymsg(msg_t *src, msg_t *dest)
+(Il monitor non deve avere buffer di tipo msg_t ma solo variabili di tipo puntatore a msg_t.)
+'''
+
+class synmsg(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.msg = ""
+        self.conditionSend = monitor.condition(self)
+        self.conditionRcv = monitor.condition(self)
+
+    @monitor.entry
+    def send(self,msg):
+        self.msg = msg
+        self.conditionRcv.signal()
+        if self.msg == "":
+            self.conditionRcv.signal()
+        else:
+            self.conditionSend.wait()
+
+    
+    @monitor.entry
+    def recieve(self,msg):
+        msg = self.msg
+        self.msg = ""
+        if msg != "":
+            self.conditionSend.signal()
+        else:
+            self.conditionRcv.wait()
+            msg = self.msg
+            self.msg = ""
+            self.conditionSend.signal()
+        return msg
+
+
+
+'''
+Facendo uso di semafori scrivere un funzione wait4 che faccia proseguire i processi a blocchi di quattro: il
+primo processo che chiama la wait4 si deve fermare, così come il secondo e il terzo. Il quarto processo deve far
+proseguire tutti e quattro i processi. In uguale modo l'ottavo processo che chiama wait4 risveglierà anche il quinto, il
+sesto e il settimo.
+SI chiede:
+* che l'implementazione non faccia uso di code o di altre strutture dati ma solamente di contatori (e ovviamente
+semafori)
+* che la soluzione faccia uso del passaggio del testimone per garantire che vengano riattivati i processi corretti e non
+altri.
+'''
+s = [Semaphore(0),Semaphore(0),Semaphore(0)]
+mutex = Semaphore(1)
+counter = 0
+def wait4():
+    global counter,mutex,s
+    mutex.acquire()
+    if counter < 3:
+        counter += 1
+        mutex.release()
+        s[counter-1].acquire()
+        return
+    for _ in range(3):
+        s[_].release()
+    counter = 0
+    mutex.release()
+
+'''
+Usando i semafori implementare un servizio che preveda due funzioni:
+ void sumstop(int v)
+ int sumgo(void)
+La funzione sumstop deve mettere il processo chiamante in attesa.
+La funzione sumgo deve sbloccare tutti i processi messi in attesa con la sumstop e restituire la somma algebrica dei
+valori passati come parametro alla sumstop dai processi che sono stati sbloccati (zero se la sumgo viene richiamate
+quando non c'è nessun processo bloccato).
+
+'''
+mutex = Semaphore(1)
+s = Semaphore(0)
+sum = 0
+counter = 0
+def sumstop(v):
+    global mutex,s,sum,counter
+    mutex.acquire()
+    sum = sum + v
+    counter += 1
+    mutex.release()
+    s.acquire()
+    return 
+
+def sumgo():
+    global mutex,s,sum,counter
+    mutex.acquire()
+    tmp = sum
+    sum = 0
+    for _ in range(counter):
+        s.release()
+    counter = 0
+    mutex.release()
+    return tmp
+
+
+'''
+In un porto con una sola banchina utilizzabile occorre caricare cereali sulle navi. I camion portano i cereali
+al porto. Una sola nave alla volta può essere attraccata al molo, un solo camion alla volta scarica i cereali nella nave.
+Il codice eseguito da ogni nave è:
+nave[i] process:
+ porto.attracca(capacità)
+ porto.salpa()
+ ...naviga verso la destinazione
+Il codice di ogni camion è:
+camion[j] process:
+ while (1):
+ quantità = carica_cereali()
+ porto.scarica(quantità)
+I camion fanno la spola dai depositi alla nave. La nave arriva vuota e può salpare solo se è stata completamente
+riempita (la somma delle quantità scaricate dai camion raggiunge la capacità indicata come parametro della funzione
+attracca). Se un camion può scaricare solo parzialmente il suo carico rimane in porto e aspetta di completare
+l'operazione con la prossima nave che attraccherà al molo.
+Scrivere il monitor porto.
+'''
+
+class porto(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.capacityres = 0    #capacita residua nave
+        self.quantityres = 0    #quantita residua camion
+        self.oknave = monitor.condition(self)
+        self.okcamion = monitor.condition(self)
+
+    @monitor.entry
+    def attracca(self,capacity):
+        self.capacityres = capacity - self.quantityres
+        if self.capacityres == 0:
+            return
+        else:
+            self.oknave.wait()
+    
+    @monitor.entry
+    def salpa(self):
+        return
+    
+    @monitor.entry
+    def scarica(self,quantity):
+        self.quantityres = 
+        return
 
 
 def p1():
-    safeprint("p1 ->",themonitor.rb(0,10))
-
+    sumstop(5)
 def p2():
-    safeprint("p2 ->",themonitor.rb(1,20))
-
+    sumstop(4)
 def p3():
-    safeprint("p3 ->",themonitor.rb(1,5))
+    safeprint(sumgo())
+
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
 t3=Thread(target=p3)
+
+
 
 t1.start()
 t2.start()
