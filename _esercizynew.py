@@ -507,43 +507,60 @@ Scrivere il monitor porto.
 class porto(monitor.monitor):
     def __init__(self):
         super().__init__()
-        self.capacityres = 0    #capacita residua nave
-        self.quantityres = 0    #quantita residua camion
         self.oknave = monitor.condition(self)
         self.okcamion = monitor.condition(self)
+        self.maxnave = 0
+        self.maxcamion = 0
+        self.actualnave = 0
+        self.actualcamion = 0
+
 
     @monitor.entry
-    def attracca(self,capacity):
-        self.capacityres = capacity - self.quantityres
-        if self.capacityres == 0:
-            return
-        else:
+    def attracca(self,capnave):
+        self.maxnave = capnave
+        self.okcamion.signal()
+        if self.actualcamion == 0:
             self.oknave.wait()
+        return
     
     @monitor.entry
     def salpa(self):
+        if self.maxnave != self.actualnave:
+            self.oknave.wait()
         return
     
     @monitor.entry
-    def scarica(self,quantity):
-        self.quantityres = 
-        return
+    def scarica(self,capcamion):
+        self.maxcamion = capcamion
+        self.actualcamion = capcamion
+        if self.maxnave == 0:
+            self.okcamion.wait()
+        if self.actualnave + self.actualcamion <= self.maxnave: #ci sta tutto il camion
+            self.actualnave = self.actualcamion + self.actualnave
+        else: #non ci sta tutto il camion
+            resnave = self.maxnave - self.actualnave
+            self.actualcamion = self.actualcamion - resnave
+            self.actualnave = self.maxnave
+            self.oknave.signal()
+
+
+themonitor = porto()
 
 
 def p1():
-    sumstop(5)
+    cap = 510
+    themonitor.attracca(cap)
+    themonitor.salpa()
 def p2():
-    sumstop(4)
-def p3():
-    safeprint(sumgo())
+    while True:
+        cap = 500
+        themonitor.scarica(cap)
 
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
-t3=Thread(target=p3)
-
 
 
 t1.start()
 t2.start()
-t3.start()
+
