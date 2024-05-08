@@ -1,0 +1,7 @@
+<dirent.h>
+
+- aprire current directory:
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".")  
+    
