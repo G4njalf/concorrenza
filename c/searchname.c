@@ -1,33 +1,51 @@
 #include <stdio.h>
-#include<dirent.h>
-#include<sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
-
-void explore(char *root){
-    DIR *dir = opendir(root);
+// Funzione ricorsiva per lo scandire della directory
+void list_directory(const char *dirname) {
+    DIR *dir;
     struct dirent *entry;
-    struct stat entry_stat;
-    char tmp_path[999];
 
-    if(dir == NULL)
-        return;
-    //readdir sposta automaticamente a prox entry
-    while(entry = readdir(dir)){
-        strcpy(tmp_path, root);
-        strcat(tmp_path, "/");
-        strcat(tmp_path, entry->d_name);
-        stat(entry->d_name,&entry_stat);
-// se cartella la esploro, escludo percorsi "speciali": '.', ' ..' per evitare loop
-        if(S_ISDIR(entry_stat.st_mode) && strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..") ){
-            explore(tmp_path);
-        }
-        else{ printf("%s\n", entry->d_name); }
+    // Apre la directory
+    if (!(dir = opendir(dirname))) {
+        perror("opendir");
+        exit(EXIT_FAILURE);
     }
-    return;
+
+    // Legge ogni elemento della directory
+    while ((entry = readdir(dir)) != NULL) {
+        // Ignora le directory speciali "." e ".."
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        // Costruisce il percorso completo dell'elemento
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dirname, entry->d_name);
+
+        // Stampa il percorso dell'elemento
+        printf("%s\n", path);
+
+        // Verifica se l'elemento è una directory
+        struct stat info;
+        if (stat(path, &info) == -1) {
+            perror("stat");
+            continue;
+        }
+
+        if (S_ISDIR(info.st_mode)) {
+            // Se l'elemento è una directory, ricorsivamente esplora la directory
+            list_directory(path);
+        }
+    }
+    closedir(dir);
 }
 
+int main() {
+    // Esegue la lista ricorsiva della directory corrente
+    list_directory(".");
 
-int main(int argc , char *argv[]){
-    explore(argv[1]);
     return 0;
 }
