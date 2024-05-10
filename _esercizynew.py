@@ -634,8 +634,8 @@ class delay(monitor.monitor):
     
     @monitor.entry
     def wait_tick(self,nticks):
-
-        return 
+        
+        return self.blockedproc
     
     @monitor.entry
     def tick(self):
