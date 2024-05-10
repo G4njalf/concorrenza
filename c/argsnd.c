@@ -7,6 +7,7 @@ int main(int argc, char const *argv[])
     for (int i = 1; i < argc; i++)
     {   
         fwrite(argv[i], 1, strlen(argv[i])+1, stdout); // Write the buffer to stdout
+        //fwrite(" ",1,1,stdout);
     }
     
     return 0;
