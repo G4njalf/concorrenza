@@ -544,23 +544,124 @@ class porto(monitor.monitor):
             self.oknave.signal()
 
 
-themonitor = porto()
+'''
+Scrivere il monitor collocamento:
+void cercolavoro(char *nome, char *skill)
+void char *assumo(char * skill)
+Quando un processo chiama la cercolavoro si mette in attesa di una richiesta di lavoro e rimane bloccato nel monitor
+fino a che non è stato assunto. Nella cercolavoro viene indicato il nome dell'aspirante lavoratore la sua capacità (skill).
+Un datore di lavoro con necessità di personale chiama la assumo specificando la capacità richiesta. Se c'è in attesa
+almeno un aspirante lavoratore con quella specifica capacità (uguale valore di skill), il datore di lavoro riceve il nome del
+nuovo dipendente ed entrambi i processi escono dal monitor. Nel caso non ci siano richieste compatibili il datore di
+lavoro si blocca nel monitor attendendo un lavoratore con la capacità cercata. Quando arriva il lavoratore che soddisfa
+le richieste si sbloccano entrambi i processi lavoratore e datore di lavoro. La assumo restituisce in ogni caso il nome del
+dipendente da assumere.
+'''
+
+class collocamento(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.countsearch = 0
+        self.search =[[],[]]
+        self.req =[]
+        self.conditionassum = monitor.condition(self)
+        self.conditionsearch = monitor.condition(self)
+
+
+    @monitor.entry
+    def cercolavoro(self,nome,skill):
+        self.countsearch += 1
+        self.search[0].append(nome)
+        self.search[1].append(skill)
+        for element in self.req:
+            if element in self.search[1]:
+                self.conditionassum.signal()
+        self.conditionsearch.wait()
+        self.countsearch -= 1
+        return
+
+
+    @monitor.entry
+    def assumo(self,skill):
+        self.req.append(skill)
+        it = 0
+        for element in self.search[1]:
+            if element in self.req:
+                sk = self.search[1].pop(it)
+                nm = self.search[0].pop(it)
+                self.req.remove(skill)
+                self.conditionsearch.signal()
+                for _ in range(self.countsearch):
+                    self.conditionsearch.signal()
+                    return (nm,sk)
+            it += 1
+        self.conditionassum.wait()
+        it = 0
+        for element in self.search[1]:
+            if element in self.req:
+                sk = self.search[1].pop(it)
+                nm = self.search[0].pop(it)
+                self.req.remove(skill)
+                self.conditionsearch.signal()
+            it += 1
+        for _ in range(self.countsearch):
+            self.conditionsearch.signal()
+        return (nm,sk)
+
+
+'''
+Scrivere il monitor delay che fornisce due procedure entry:
+int wait_tick(int nticks)
+void tick(void)
+La procedure entry tick è pensata per essere richiamata periodicamente (es. ogni secondo o ora o giorno) da un
+processo.
+Quando un processo chiama la wait_tick deve attendere un numero di chiamate della tick pari al parametro nticks.
+Per esempio se un processo chiama wait_tick(2) deve fermarsi e verrà riattivato alla seconda successiva chiamata di
+tick.
+La funzione wait_tick ha come valore di ritorno il numero di processi che erano bloccati al momento della tick che ha
+sbloccato il chiamante.
+Esempio: P chiama wait_tick(2) e si blocca. Q chiama wait_tick(3) e si blocca. T chiama tick() non succede nulla. R
+chiama wait_tick(2) e si blocca. T chiama tick(), viene sbloccata la wait_tick di P e il valore ritornato è 3. T chiama
+tick(), vengono sbloccate le wait_tick di Q e R e il valore ritornato per entrambi i processi è 2
+'''
+
+class delay(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.blockedproc = 0
+        self.nticks = 0
+        self.condition = monitor.condition(self)
+    
+    @monitor.entry
+    def wait_tick(self,nticks):
+
+        return 
+    
+    @monitor.entry
+    def tick(self):
+        return
+
+
+mon = delay()
 
 
 def p1():
-    cap = 510
-    themonitor.attracca(cap)
-    themonitor.salpa()
+   while True:
+        time.sleep(2)
+        mon.tick()
 def p2():
-    while True:
-        cap = 500
-        themonitor.scarica(cap)
+    mon.wait_tick(5)
+def p3():
+    mon.wait_tick(3)
+
 
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
+t3=Thread(target=p3)
 
 
 t1.start()
 t2.start()
+t3.start()
 
