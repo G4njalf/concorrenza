@@ -630,29 +630,128 @@ class delay(monitor.monitor):
         super().__init__()
         self.blockedproc = 0
         self.nticks = 0
+        self.mem = 0 
         self.condition = monitor.condition(self)
+        self.list = [[],[]]  #(nticks,ticksvisti)
     
     @monitor.entry
     def wait_tick(self,nticks):
-        
-        return self.blockedproc
+        self.list[0].append(nticks)
+        self.list[1].append(0)
+        self.blockedproc += 1
+        self.condition.wait()
+        idx = self.list[0].index(nticks)
+        self.list[0].pop(idx)
+        self.list[1].pop(idx)
+        self.mem = self.blockedproc
+        self.blockedproc -=1
+        return self.mem
     
     @monitor.entry
     def tick(self):
+        if self.blockedproc == 0:
+            return
+        for i in range(len(self.list[0])):
+            self.list[1][i] +=1
+        if self.list[0][0] == self.list[1][0]:
+            self.condition.signal()
+            self.mem = 0
         return
 
 
-mon = delay()
+'''
+Scrivere il monitor semdata che implementi un semaforo con dato. Questa astrazione prevede due
+operazioni:
+ datatype dP(void);
+ void dV(datatype data);
+Non è previsto assegmento di valore iniziale nel costruttore, l'invariante è lo stesso dei semafori (con init = 0): ndP <=
+ndV (dove ndP e ndV rappresentano rispettivamente il numero di operazioni dP e dV completate. I dati passati come
+parametro alla dV devono essere memorizzati in ordine LIFO. L'operazione nP restituisce il valore più recente fra quelli
+memorizzati (e lo cancella dalla struttura dati).
+'''
+
+class semdata(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.data = [] #in ordine LIFO
+        self.condition = monitor.condition(self)
+
+
+    @monitor.entry
+    def dp(self):
+        if len(self.data) == 0:
+            self.condition.wait()
+        return self.data.pop(0)
+    
+    @monitor.entry
+    def dv(self,data):
+        self.data.insert(0,data)
+        self.condition.signal()
+        return
+
+
+
+'''
+Scrivere il monitor multibuf che implementi un buffer limitato (MAX elementi) di oggetti di tipo T che
+implementi le seguenti procedure entry:
+void add(int n, T objexts[]);
+void get(int n, T objects[]);
+La funzione add deve aggiungere al buffer gli n oggetti passati col parametro objects. La funzione get deve predere
+dal buffer in modalità FIFO i primi n elementi presenti nel buffer e copiarli negli elementi del vettore objects.
+Entrambe le funzioni devono attendere che vi siano le condizioni per poter essere completate: che ci siano n elementi
+liberi per la add, che ci siano n elementi nel buffer per la get. Non sono ammesse esecuzioni parziali: mentre attendono
+le rispettive condizioni nessun elemento può essere aggiunto o rimosso dal buffer.
+La definizione del problema C.1 presenta casi di possibile deadlock? quali?
+'''
+
+class multibuf(monitor.monitor):
+    def __init__(self,max):
+        super().__init__()
+        self.max = max
+        self.n = max
+        self.buff = []
+        self.condition1 = monitor.condition(self)
+        self.condition2 = monitor.condition(self)
+
+    @monitor.entry
+    def add(self,obj):
+        if len(self.buff) + len(obj) > self.max:
+            self.condition1.wait()
+        self.buff.extend(obj)
+        if len(self.buff) >= self.n:
+            self.condition2.signal()
+        return
+    
+    @monitor.entry
+    def get(self,n,obj):
+        self.n = n
+        if len(self.buff) < n:
+            self.condition2.wait()
+        for _ in range(n):
+            obj.append(self.buff.pop(0))
+        self.condition1.signal()
+        return obj  
+
+
+
+
+
+mon = multibuf(4)
+
 
 
 def p1():
-   while True:
-        time.sleep(2)
-        mon.tick()
+    while True:
+        ob = []
+        mon.get(3,ob)
 def p2():
-    mon.wait_tick(5)
+    while True:
+        ob = [3,2,1,0]
+        mon.add(ob)
 def p3():
-    mon.wait_tick(3)
+    while True:
+        ob = [9,8,7]
+        mon.add(ob)
 
 
 
