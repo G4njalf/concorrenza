@@ -1,0 +1,44 @@
+Sia dato un sistema di message passing asincrono con duplicazione dei messaggi.
+dsnd(msg_t msg, pid_t dest)
+msg_t drecv(pid_t sender)
+I messaggi spediti con dsend verranno sicuramente ricevuti almeno una volta ma possono essere ricevuti più volte. È
+garantita la consegna FIFO.
+Implementare un sistema di message passing asincrono (classico). (non fare uso di processi server)
+
+void asend(msg_t msg , pid_t dest){
+    dsnd(msg,dest)
+}
+
+msg_t m = NULL
+
+msg_t areceive(pid_t sender){
+    msg_t msg = drecv(sender)
+    if msg == m 
+        return NULL
+    m = msg
+    return msg
+}
+
+
+Dato un sistema di message passing asincrono implementare un sistema di message passing asincrono
+con priorità che fornisce i seguenti metodi:
+pasend(int prio, msg_t msg, pid_t dest)
+msg_t pasrecv(pid_t sender)
+La funzione pasrecv restituisce il messaggio a massima priorità fra quelli in attesa di essere ricevuti.
+(non fare uso di processi server).
+
+
+let pq be a new priority queue
+
+pasend(int prio, msg_t msg, pid_t dest){
+    msg.prio = prio
+    asend(msg,dest)
+}
+
+msg_t pasrecv(pid_t sender){
+    msg_t msg = arecv(sender)
+    pq.push(sender,msg.prio,msg)
+    return pq.pop()
+}
+
+
