@@ -42,3 +42,15 @@ msg_t pasrecv(pid_t sender){
 }
 
 
+Un servizio di message passing asincrono esteso (XAMP) fornisce 4 chiamate:
+• void xsend(msg_t msg, pid_t pid): spedisce il messaggio msg al processo pid
+• msg_t xrecv(pid_t pid): riceve un messaggio da pid (o da chiuque se pid==0). E' una receive completamente
+asincrona: se non c'è nessun messaggio da pid (o da chiunque se pid==0), xrecv restituisce NULL, non attende.
+• int xcount(pid_t pid): ritorna il numero di messaggi in attesa di essere ricevuti provenienti da pid (o da
+chiunque se pid==0).
+• void xexpect(pid_t pid): attende che vi sia almeno un messaggio in attesa di essere ricevuto proveniente da
+pid (o da chiunque se pid==0). Se un tale elemento esiste al momento della chiamata, xexpect non è
+bloccante.
+Il servizio XAMP ha lo stesso potere espressivo del message passing asincrono? (quello definito a lezione)
+
+
