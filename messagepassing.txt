@@ -3,21 +3,26 @@ dsnd(msg_t msg, pid_t dest)
 msg_t drecv(pid_t sender)
 I messaggi spediti con dsend verranno sicuramente ricevuti almeno una volta ma possono essere ricevuti più volte. È
 garantita la consegna FIFO.
-Implementare un sistema di message passing asincrono (classico). (non fare uso di processi server)
+Implementare un sistema di message passing asincrono (classico). (non fare uso di processi server).
 
-void asend(msg_t msg , pid_t dest){
+
+int i = 0
+int oldid = 0
+
+void asend(msg_t msg, pid_t dest)
+    msg.id = i++
     dsnd(msg,dest)
-}
 
-msg_t m = NULL
 
-msg_t areceive(pid_t sender){
-    msg_t msg = drecv(sender)
-    if msg == m 
+
+msg_t arecv(pid_t sender)
+    msg_t m = drecv(sender)
+    if m.id != oldid:
+        oldid = m.id
+        return m
+    else:
         return NULL
-    m = msg
-    return msg
-}
+
 
 
 Dato un sistema di message passing asincrono implementare un sistema di message passing asincrono
@@ -27,19 +32,25 @@ msg_t pasrecv(pid_t sender)
 La funzione pasrecv restituisce il messaggio a massima priorità fra quelli in attesa di essere ricevuti.
 (non fare uso di processi server).
 
+let Q[senders] be a new priorityqueue
 
-let pq be a new priority queue
+dove q.push(int prio, msg_t msg) -> pusha il messaggio piu verso la testa + priorita alta
+q.pop() -> ritorna elemento con priorita massima
 
-pasend(int prio, msg_t msg, pid_t dest){
+pasend(int prio, msg_t msg, pid_t dest):
     msg.prio = prio
     asend(msg,dest)
-}
 
-msg_t pasrecv(pid_t sender){
-    msg_t msg = arecv(sender)
-    pq.push(sender,msg.prio,msg)
-    return pq.pop()
-}
+
+msg_t pasrecv(pid_t sender):
+    msg_t m = arecv(sender)
+    if sender != ANY :
+        Q[sender].push(m.prio,m)
+        return Q[sender].pop()
+    else :
+        Q[ANY].push(m.prio,m)
+        return Q[ANY].pop()
+
 
 
 Un servizio di message passing asincrono esteso (XAMP) fornisce 4 chiamate:
@@ -52,5 +63,75 @@ chiunque se pid==0).
 pid (o da chiunque se pid==0). Se un tale elemento esiste al momento della chiamata, xexpect non è
 bloccante.
 Il servizio XAMP ha lo stesso potere espressivo del message passing asincrono? (quello definito a lezione)
+
+per vedere se XAMP ha lo stesso potere espressivo del message passing asincrono vediamo se da XAMP si puo ricreare quel tipo
+di message passing
+
+
+asend(msg_t msg, pid_t pid):
+    xsend(msg,pid)
+
+
+areceive(pid_t pid):
+    xexpect(pid)
+    msg_t m = xrecv(pid)
+    return m
+
+
+Un servizio di message passing universale supporta tutti i modelli di message passing: sincrono, asincrono
+e completamente asincrono. Il funzionamento può essere deciso ad ogni spedizione o ricezione. La API prevede due
+funzioni:
+void usend(bool blocking, msg_t msg, pid_t dest)
+msg_t urecv(bool blocking, pid_t sender)
+le funzioni sono bloccanti o meno a seconda del valore del parametro blocking.
+Dato un servizio di message passing asincrono scrivere un servizio di message passing universale
+
+void usend(bool blocking, msg_t msg, pid_t dest):
+    if blocking:
+        asend(msg,dest)
+        msg_t ack = areceive(mypid)
+        
+    else:
+        asend(msg,dest)
+
+msg_t urecv(bool blocking, pid_t sender):
+    if blocking:
+        areceive(sender)
+        asend(ACK,sender)
+    else:
+        asend(ACK,mypid)
+        msg_t m = areceive(sender)
+        if m==ACK:
+            return NULL
+        asend(ACK,sender)
+        return m
+
+
+
+Dato un servizio di message passing asincrono costruire un servizio di message passing completamente
+asincrono a liste che abbia due metodi:
+nbl_send(msg_t m, pid_t dest)
+list of msg_t nbl_receive(pid_t sender)
+La chiamata nbl_receive deve restituire la lista di tutti i messaggi ricevuti dal mittente specificato (sender) o la lista di
+tutti i messaggi ricevuti se sender è -1 (ANY).
+Il servizio è completamente asincrono perché se non vi sono messaggi che soddisfano la condizione richiesta
+nbl_receive restituisce una lista vuota senza attendere.
+
+nbl_send(msg_t m, pid_t dest)
+    asend(m,dest)
+
+list of msg_t list[senders]
+list of msg_t anylist
+
+list of msg_t nbl_receive(pid_t sender)
+    asend(NULLMSG,mypid)
+    msg_t m = areceive()
+    if m != NULLMSG:
+        list[sender].append(m)
+        anylist.append(m)
+        if sender == ANY
+            return anylist
+        return list[sender]
+    return NULL
 
 

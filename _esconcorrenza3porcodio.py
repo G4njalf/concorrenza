@@ -132,24 +132,178 @@ class ab12(monitor.monitor):
 
 
 
+'''
+Scrivere il monitor ds (dispatchstring) che consenta di trasferire stringhe di caratteri fra processi. Il monitor
+ha quattro procedure entry:
+void startsend(void)
+void sendchar(char c)
+void startrecv(void)
+char recvchar(void)
+Quando un processo vuole spedire una stringa chiama la funzione startsend poi tramite sendchar spedisce uno ad
+uno i caratteri della stringa e infine il carattere 0 per indicare la fine della stringa. Similmente quando un processo vuole
+ricevere una stringa chiama la funzione startrecv, riceve uno ad uno i caratteri usando la recvchar. La ricezione del
+carattere 0 indica la fine della stringa.
+Il monitor trasferisce una stringa alla volta e deve usare un buffer di un solo carattere (non può memorizzare vettori o
+stringhe di caratteri).
+'''
+
+class ds(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.char = None  # Inizialmente il buffer è vuoto
+        self.condsend = monitor.condition(self)
+        self.condrecv = monitor.condition(self)
+
+    @monitor.entry
+    def startsend(self):
+        pass  # Potrebbe non fare nulla
+
+    @monitor.entry
+    def sendchar(self, char):
+        while self.char is not None:  # Aspetta finché il buffer non è vuoto
+            self.condsend.wait()
+        self.char = char
+        self.condrecv.signal()  # Segnala che c'è un nuovo carattere nel buffer
+
+    @monitor.entry
+    def startrecv(self):
+        pass  # Potrebbe non fare nulla
+
+    @monitor.entry
+    def recvchar(self):
+        while self.char is None:  # Aspetta finché il buffer non è pieno
+            self.condrecv.wait()
+        char = self.char
+        self.char = None  # Svuota il buffer
+        self.condsend.signal()  # Segnala che il buffer è vuoto
+        return char
 
 
-mon = ab12()
+
+
+
+'''
+Scrivere il monitor sv con una sola funzione entry syncvalue che ha la seguente dichiarazione:
+procedure entry int syncvalue(int key);
+I processi che chiamano la syncvalue si bloccano sempre. Quando il valore del parametro key è diverso da quello della
+precedente chiamata il processo prima di bloccarsi riattiva tutti i processi in attesa. Il valore di ritorno è il numero di
+processi con lo stesso valore key sbloccati. Per esempio:
+P chiama sv.syncvalue(42), si blocca.
+Q chiama sv.syncvalue(42), si blocca.
+R chiama sv.syncvalue(44) sblocca P e Q poi si blocca. Il valore di ritorno per P e Q è 2.
+T chiama sv.syncvalue(46), sblocca R che ritorna 1 e si blocca.
+Q chiama sv.syncvalue(46), si blocca.
+P chiama sv.syncvalue(46), si blocca
+V chiama sv.syncvalue(0), sblocca T, Q e P (valore di ritorno: 3) poi si blocca...
+'''
+
+class sv(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.key = None
+        self.blockedcount = 0
+        self.condition = monitor.condition(self)
+    
+    @monitor.entry
+    def syncvalue(self,key):
+        if self.key != key:
+            if self.blockedcount > 0:
+                for _ in range(self.blockedcount):
+                    self.condition.signal()
+                self.blockedcount = 1
+                self.key = key
+                self.condition.wait()
+            else:
+                self.key = key
+                self.blockedcount +=1
+                self.condition.wait()
+        else:
+            self.blockedcount +=1
+            self.condition.wait()
+        return self.blockedcount
+
+
+'''
+Scrivere il monitor rb (redblack) con due procedure entry:
+float meanblack(float v)
+float meanred(float v)
+Esistono due tipi di processo, neri e rossi. I processi neri chiamano la funzione meanblack mentre i processi rossi
+chiamano meanred.
+Entrambe le funzioni restituiscono la media dei valori passati da una chiamata di meanblack e una di meanred.
+Per fare il calcolo ogni chiamata di un processo rosso (meanred) deve sincronizzarsi con una chiamata di un processo
+nero (meanblack) e viceversa. Se la prima chiamata è una meanblack il processo chiamante attende, quando
+successivamente un processo rosso chiama meanred entrambi i processi si sbloccano ed entrambe le funzioni devono
+restituire lo stesso valore (la media dei valori del parametro v). Se non arrivano chiamate di meanred i processi neri che
+chiamano meanblack devono attendere in ordine FIFO. Lo stesso vale anche per i processi meanred fino ad una
+chiamata di meanblack.
+Il monitor rb deve usare una sola variabile di condizione e nessuna coda/lista/array, solo valori scalari (int o float)
+'''
+
+class rb(monitor.monitor):
+    def __init__(self):
+        super().__init__()
+        self.condition = monitor.condition(self)
+        self.red = 0
+        self.black = 0
+        
+    
+    @monitor.entry
+    def meanblack(self,v):
+        if self.black != 0:
+            self.condition.wait()
+        else:
+            self.black = v
+            self.condition.signal()
+            if self.red == 0:
+                self.condition.wait()
+                black = self.black
+                red = self.red
+                self.black = 0
+                self.red = 0
+                return (black + red)/2
+            else:
+                return (black + red)/2
+    
+    @monitor.entry
+    def meanred(self,v):
+        return
+
+
+'''
+Scrivere il monitor cs che fornisca un servizio di elaborazione client-server.
+I molteplici "clienti" chiedono elaborazioni ai server eseguendo la seguente funzione:
+def service_request(data):
+ return cs.request(data)
+mentre i server eseguono il codice:
+process server(i: i = 0,...,NSERVER-1):
+ while True:
+ data = cs.get_request(i)
+ cs.send_result(i, process(data))
+Quando un server è libero chiede una nuova richiesta da elaborare (funzione get_request), se non ci sono richieste da
+elaborare attende che un cliente ne sottoponga una (tramite la funzione request). Se vi sono uno o più richieste in attesa
+di essere elaborate get_request restituisce i dati (argomento data) della prima.
+Dopo che il server ha elaborato la richiesta (funzione process) il risultato viene passsato al monitor tramite la funzione
+send_result che lo restituisce al cliente come valore di ritorno della funzione request.
+'''
+
+
+
+mon = rb()
 
 def p1():
-    while True:
-        time.sleep(2)
-        safeprint(mon.adda(1,2))
+    safeprint(mon.meanblack(3))
+    time.sleep(1)
+    safeprint(mon.meanblack(4))
+
 def p2():
-    while True:
-        safeprint(mon.addb(4))
-        time.sleep(1.5)
+    time.sleep(1)
+    safeprint(mon.meanred(2))
+    safeprint(mon.meanred(1))
+
 def p3():
-    while True:
-        time.sleep(2)
-        safeprint(mon.getoneA())
-        time.sleep(1)
-        safeprint(mon.getab())
+    time.sleep(1)
+
+
 
 t1=Thread(target=p1)
 t2=Thread(target=p2)
